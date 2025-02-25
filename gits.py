@@ -1,12 +1,16 @@
 import pygame
+from random import randint
 
 pygame.init()
 
-WIDTH, HEIGHT = 800, 512
+WIDTH, HEIGHT = 600, 512
 FPS = 60
 
 window = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
+
+pygame.display.set_caption('Flappy bird')
+pygame.display.set_icon(pygame.image.load('images/blueskin.png'))
 
 font1 = pygame.font.Font(None, 30)
 font2 = pygame.font.Font(None, 70)
@@ -16,6 +20,12 @@ img_bird = pygame.image.load('images/bluebird-midflap.png')
 img_PT = pygame.image.load('images/m_pipe-green.png')
 img_PB = pygame.image.load('images/pipe-green.png')
 
+pygame.mixer.music.load('music/sound.mp3')
+pygame.mixer.music.set_volume(0.12)
+pygame.mixer.music.play(-1)
+
+sound_fall = pygame.mixer.Sound('music/hit.wav')
+
 py, sy, ay = HEIGHT // 2, 0, 0
 player = pygame.Rect(WIDTH // 3, py, 50, 50)
 
@@ -23,10 +33,15 @@ state = 'start'
 timer = 10  # ждем 10 тиков во избежании непредвиденных ситуаций
 
 pipes = []
+pipes_scores = []
 bgs = [pygame.Rect(0, 0, 288, 512)]
 
 lives = 5
 scores = 0
+
+speed = 3
+size = 200
+gate = HEIGHT // 2
 
 play = True
 while play:
@@ -40,9 +55,12 @@ while play:
 
     if timer > 0:
         timer -= 1
+
+    speed = 3 + scores // 1000
+
     for x in range(len(bgs) - 1, -1, -1):
         bg = bgs[x]
-        bg.x -= 1
+        bg.x -= speed // 2
 
         if bg.right < -1:
             bgs.remove(bg)
@@ -52,10 +70,12 @@ while play:
 
     for i in range(len(pipes) - 1, -1, -1):  # иду с конца, так так при удалении труб было некое дерганье экрана
         elem = pipes[i]
-        elem.x -= 2
+        elem.x -= speed
 
         if elem.right < -1:  # при долгой игре забивается память и начинает лагать
             pipes.remove(elem)
+            if elem in pipes_scores:
+                pipes_scores.remove(elem)
 
     if state == 'start':
         if click and timer == 0 and len(pipes) == 0:
@@ -73,9 +93,11 @@ while play:
         sy = (sy + ay + 1) * 0.95  # для более плавной картинки
         player.y = py
 
-        if len(pipes) == 0 or pipes[len(pipes) - 1].x < WIDTH - 150:
-            pipes.append(pygame.Rect(WIDTH, 0, 52, 320))
-            pipes.append(pygame.Rect(WIDTH, 400, 52, 320))
+        if len(pipes) == 0 or pipes[len(pipes) - 1].x < WIDTH - 200:
+            pipes.append(pygame.Rect(WIDTH, 0, 52, size - gate // 2))
+            pipes.append(pygame.Rect(WIDTH, size + gate // 2, 52, HEIGHT - size + gate // 2))
+
+            size += randint(-50, 50)
 
         if player.top < 0 or player.bottom > HEIGHT:
             state = 'fall'
@@ -83,12 +105,24 @@ while play:
         for elem in pipes:
             if player.colliderect(elem):
                 state = 'fall'
+            if elem.right < player.left and elem not in pipes_scores:
+                pipes_scores.append(elem)
+                scores += 50
     elif state == 'fall':
+        sound_fall.play()
         sy, ay = 0, 0
-        state = 'start'
-        timer = 60  # задержка 1 секунда
+        gate = HEIGHT // 2
+
+        lives -= 1
+        if lives > 0:
+            state = 'start'
+            timer = 60  # задержка 1 секунда
+        else:
+            state = 'end'
+            timer = 120
     else:
-        pass
+        if timer == 0:
+            play = False
     if click:
         ay = -2
     else:
